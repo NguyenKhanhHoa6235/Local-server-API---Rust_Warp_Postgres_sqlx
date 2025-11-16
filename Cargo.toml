@@ -1,0 +1,30 @@
+[package]
+name = "local_server_API"
+version = "0.1.0"
+edition = "2024"
+
+
+[dependencies]
+warp = "0.3"
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls", "macros", "time", "chrono", "migrate"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+argon2 = "0.4"
+password-hash = "0.4"
+rand_core = "0.6"
+dotenvy = "0.15"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+time = { version = "0.3", features = ["macros", "serde"] }
+chrono = { version = "0.4.42", features = ["serde"] }
+
+
+[profile.dev]
+opt-level = 0
+
+
+[profile.release]
+opt-level = 3

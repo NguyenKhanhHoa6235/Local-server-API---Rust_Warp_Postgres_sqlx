@@ -1,0 +1,8 @@
+/target
+
+# SQLx cache
+/.sqlx/
+
+# Env files
+.env
+.env.*
