@@ -1,19 +1,21 @@
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-// use time::OffsetDateTime;
 
-#[derive(Deserialize)]
+// Request body cho /register
+#[derive(Deserialize, Debug)]
 pub struct RegisterRequest {
     pub name: String,
     pub password: String,
 }
 
-#[derive(Deserialize)]
+// Request body cho /login
+#[derive(Deserialize, Debug)]
 pub struct LoginRequest {
     pub name: String,
     pub password: String,
 }
 
+// Response cho /register
 #[derive(Serialize)]
 pub struct UserResponse {
     pub id: i32,

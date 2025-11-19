@@ -3,6 +3,8 @@ mod handlers;
 mod models;
 mod routes;
 mod errors;
+mod jwt;
+mod rate_limit;
 
 use sqlx::PgPool;
 use tracing_subscriber;
