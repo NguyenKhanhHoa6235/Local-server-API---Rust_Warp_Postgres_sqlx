@@ -13,7 +13,7 @@ pub fn with_auth() -> impl Filter<Extract = (jwt::Claims,), Error = warp::Reject
                 return Err(warp::reject::custom(ApiError::Unauthorized("Missing Bearer token".into())));
             }
             let token = auth_header.trim_start_matches("Bearer ").trim();
-            match jwt::verify_token(token) {
+            match jwt::verify_token(token).await {
                 Ok(claims) => Ok(claims),
                 Err(msg) => Err(warp::reject::custom(ApiError::Unauthorized(msg))),
             }

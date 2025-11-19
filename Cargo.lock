@@ -917,6 +917,7 @@ dependencies = [
  "dashmap",
  "dotenvy",
  "jsonwebtoken",
+ "lazy_static",
  "password-hash",
  "rand_core",
  "serde",
