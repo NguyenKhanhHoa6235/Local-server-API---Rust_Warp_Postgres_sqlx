@@ -9,7 +9,7 @@ This is a **Local Server API** project built with **Rust**, using the **Warp** f
 - Password security using **Argon2**
 - PostgreSQL database connection via **SQLx**
 - Basic API routes for a backend server
-- Security Features: JWT Authentication, Idle Timeout, Rate Limiting
+- Security Features: **JWT Authentication**, **Idle Timeout**, **Rate Limiting**
 
 ## ▶️ Run the App
 1. **Clone the repository**
