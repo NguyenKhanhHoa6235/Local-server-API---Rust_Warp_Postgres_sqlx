@@ -5,12 +5,15 @@ use crate::errors::ApiError;
 use tokio::sync::Mutex;
 use std::sync::Arc;
 
-const MAX_REQUESTS: u32 = 3; // tối đa request mỗi WINDOW
-const WINDOW: Duration = Duration::from_secs(60); // thời gian window (giây)
+/// Số request tối đa trong WINDOW
+const MAX_REQUESTS: usize = 3; // bạn có thể điều chỉnh
+/// Kích thước sliding window (giây)
+const WINDOW: Duration = Duration::from_secs(60);
 
 #[derive(Clone)]
 pub struct RateLimiter {
-    pub store: Arc<DashMap<String, Arc<Mutex<(u32, SystemTime)>>>>,
+    /// Key: ip (String) -> value: Arc<Mutex<Vec<SystemTime>>> (danh sách các timestamp request gần đây)
+    pub store: Arc<DashMap<String, Arc<Mutex<Vec<SystemTime>>>>>,
 }
 
 impl RateLimiter {
@@ -20,35 +23,44 @@ impl RateLimiter {
         }
     }
 
+    /// Kiểm tra rate limit cho ip; trả Err(ApiError) nếu vượt
     pub async fn check(&self, ip: String) -> Result<(), ApiError> {
         let now = SystemTime::now();
 
+        // Lấy entry (hoặc insert mới với vec rỗng)
         let entry = self.store.entry(ip.clone())
-            .or_insert_with(|| Arc::new(Mutex::new((0, now))))
+            .or_insert_with(|| Arc::new(Mutex::new(Vec::new())))
             .clone();
 
+        // Lock danh sách timestamp
         let mut guard = entry.lock().await;
-        let (ref mut count, ref mut start_time) = *guard;
+        let timestamps = &mut *guard;
 
-        if now.duration_since(*start_time).unwrap_or(Duration::from_secs(0)) > WINDOW {
-            *count = 0;
-            *start_time = now;
-        }
+        // Loại bỏ timestamp cũ hơn WINDOW
+        let window_start = now.checked_sub(WINDOW).unwrap_or(SystemTime::UNIX_EPOCH);
+        // retain only timestamps >= window_start
+        timestamps.retain(|&t| t >= window_start);
 
-        if *count >= MAX_REQUESTS {
+        // Nếu đã đạt giới hạn thì reject
+        if timestamps.len() >= MAX_REQUESTS {
             return Err(ApiError::BadRequest(format!(
                 "Too many requests from {}. Only {} requests per {} seconds allowed.",
                 ip, MAX_REQUESTS, WINDOW.as_secs()
             )));
         }
 
-        *count += 1;
-        println!("[RateLimit] IP: {}, count: {}", ip, *count);
+        // Thêm timestamp hiện tại
+        timestamps.push(now);
+
+        // (Tuỳ chọn) log cho dev
+        println!("[RateLimit][sliding] IP: {}, count_in_window: {}", ip, timestamps.len());
 
         Ok(())
     }
 }
 
+/// Warp filter để sử dụng trong routes.
+/// Vẫn giữ API giống trước: with_rate_limit(limiter)
 pub fn with_rate_limit(
     limiter: RateLimiter,
 ) -> impl Filter<Extract = (), Error = warp::Rejection> + Clone {
@@ -58,7 +70,7 @@ pub fn with_rate_limit(
             async move {
                 let ip = addr
                     .map(|a| a.ip().to_string())
-                    .unwrap_or("unknown".into());
+                    .unwrap_or_else(|| "unknown".into());
 
                 limiter.check(ip).await.map_err(|e| reject::custom(e))?;
 
