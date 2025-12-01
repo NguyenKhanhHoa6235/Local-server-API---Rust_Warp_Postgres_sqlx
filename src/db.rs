@@ -21,7 +21,6 @@ pub fn verify_password(hash: &str, password: &str) -> Result<bool> {
     let parsed = password_hash::PasswordHash::new(hash)
         .map_err(|e| anyhow::anyhow!(e))?;
     let argon2 = Argon2::default();
-    // Trả về true nếu verify thành công (is_ok), false nếu thất bại
     Ok(argon2.verify_password(password.as_bytes(), &parsed).is_ok())
 }
 
@@ -38,8 +37,7 @@ pub async fn create_user(pool: &PgPool, name: &str, hash: &str) -> Result<i32, A
     match res {
         Ok(rec) => Ok(rec.id),
         Err(sqlx::Error::Database(db_err)) => {
-            // Lỗi 23505 là lỗi khóa duy nhất (unique constraint violation), ở đây là `name`
-            if db_err.code() == Some("23505".into()) { 
+            if db_err.code() == Some("23505".into()) {
                 Err(ApiError::UserExists)
             } else {
                 Err(ApiError::InternalError(format!("Database error: {}", db_err)))
@@ -62,7 +60,10 @@ pub async fn get_user_by_name(
     .await
     .map_err(|e| ApiError::InternalError(format!("DB fetch error: {}", e)))?;
 
-    Ok(rec.map(|r| (r.id, r.name, r.password_hash, r.created_at)))
+    Ok(rec.map(|r| {
+        let created_at = r.created_at.unwrap_or(Utc::now()); // unwrap Option
+        (r.id, r.name, r.password_hash, created_at)
+    }))
 }
 
 /// Xóa user theo ID
@@ -72,4 +73,26 @@ pub async fn delete_user(pool: &PgPool, id: i32) -> Result<u64, ApiError> {
         .await
         .map_err(|e| ApiError::InternalError(format!("DB delete error: {}", e)))?;
     Ok(res.rows_affected())
+}
+
+/// Cập nhật avatar_path của user
+pub async fn update_user_avatar(pool: &PgPool, id: i32, path: &str) -> Result<u64, ApiError> {
+    let res = sqlx::query!(
+        "UPDATE users SET avatar_path = $1 WHERE id = $2",
+        path,
+        id
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::InternalError(format!("DB update avatar error: {}", e)))?;
+    Ok(res.rows_affected())
+}
+
+/// Lấy avatar_path của user
+pub async fn get_avatar_path(pool: &PgPool, id: i32) -> Result<Option<String>, ApiError> {
+    let rec = sqlx::query!("SELECT avatar_path FROM users WHERE id = $1", id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::InternalError(format!("DB fetch avatar error: {}", e)))?;
+    Ok(rec.and_then(|r| r.avatar_path))
 }

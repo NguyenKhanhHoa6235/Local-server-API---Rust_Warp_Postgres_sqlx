@@ -60,7 +60,6 @@ impl RateLimiter {
 }
 
 /// Warp filter để sử dụng trong routes.
-/// Vẫn giữ API giống trước: with_rate_limit(limiter)
 pub fn with_rate_limit(
     limiter: RateLimiter,
 ) -> impl Filter<Extract = (), Error = warp::Rejection> + Clone {

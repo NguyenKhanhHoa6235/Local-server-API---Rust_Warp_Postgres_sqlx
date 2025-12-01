@@ -6,6 +6,7 @@ use crate::jwt;
 use crate::errors::ApiError;
 use crate::rate_limit::{RateLimiter, with_rate_limit};
 
+/// Filter xác thực JWT
 pub fn with_auth() -> impl Filter<Extract = (jwt::Claims,), Error = warp::Rejection> + Clone {
     warp::header::<String>("authorization")
         .and_then(|auth_header: String| async move {
@@ -20,6 +21,7 @@ pub fn with_auth() -> impl Filter<Extract = (jwt::Claims,), Error = warp::Reject
         })
 }
 
+/// Tạo tất cả routes
 pub fn create_routes(pool: PgPool) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let db_filter = warp::any().map(move || pool.clone());
 
@@ -27,11 +29,13 @@ pub fn create_routes(pool: PgPool) -> impl Filter<Extract = impl warp::Reply, Er
     let limiter = RateLimiter::new();
     let rate_limit_filter = with_rate_limit(limiter);
 
+    // Root
     let root = warp::path::end()
         .and(warp::get())
-        .and(rate_limit_filter.clone())   // áp dụng rate limit
+        .and(rate_limit_filter.clone())
         .and_then(handlers::root_handler);
 
+    // Register
     let register = warp::path("register")
         .and(warp::post())
         .and(rate_limit_filter.clone())
@@ -39,6 +43,7 @@ pub fn create_routes(pool: PgPool) -> impl Filter<Extract = impl warp::Reply, Er
         .and(db_filter.clone())
         .and_then(handlers::register_handler);
 
+    // Login
     let login = warp::path("login")
         .and(warp::post())
         .and(rate_limit_filter.clone())
@@ -46,6 +51,7 @@ pub fn create_routes(pool: PgPool) -> impl Filter<Extract = impl warp::Reply, Er
         .and(db_filter.clone())
         .and_then(handlers::login_handler);
 
+    // Delete user
     let delete = warp::path!("users" / i32)
         .and(warp::delete())
         .and(rate_limit_filter.clone())
@@ -58,7 +64,32 @@ pub fn create_routes(pool: PgPool) -> impl Filter<Extract = impl warp::Reply, Er
             handlers::delete_user_handler(id, pool).await
         });
 
-    root.or(register).or(login).or(delete)
+    // Upload avatar
+    let upload_avatar = warp::path!("users" / i32 / "avatar")
+        .and(warp::post())
+        .and(rate_limit_filter.clone())
+        .and(db_filter.clone())
+        .and(with_auth())
+        .and(warp::multipart::form().max_length(5_000_000)) // giới hạn 5MB
+        .and_then(|id: i32, pool: PgPool, claims: jwt::Claims, form: warp::multipart::FormData| async move {
+            handlers::upload_avatar_handler(id, pool, claims, form).await
+        });
+
+    // Get avatar
+    let get_avatar = warp::path!("users" / i32 / "avatar")
+        .and(warp::get())
+        .and(rate_limit_filter.clone())
+        .and(db_filter.clone())
+        .and_then(|id: i32, pool: PgPool| async move {
+            handlers::get_avatar_handler(id, pool).await
+        });
+
+    // Kết hợp tất cả route
+    root.or(register)
+        .or(login)
+        .or(delete)
+        .or(upload_avatar)
+        .or(get_avatar)
         .recover(|err: warp::Rejection| async move {
             if let Some(e) = err.find::<ApiError>() {
                 let code = e.status_code();
@@ -69,4 +100,3 @@ pub fn create_routes(pool: PgPool) -> impl Filter<Extract = impl warp::Reply, Er
             Ok(warp::reply::with_status(warp::reply::json(&msg), warp::http::StatusCode::INTERNAL_SERVER_ERROR))
         })
 }
-

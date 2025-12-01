@@ -2,5 +2,6 @@ CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    avatar_path TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );

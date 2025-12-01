@@ -22,3 +22,8 @@ pub struct UserResponse {
     pub name: String,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Serialize)]
+pub struct AvatarResponse {
+    pub path: String,
+}
